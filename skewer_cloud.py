@@ -192,6 +192,53 @@ def makeSkewerCloud(seed=1):
     return None
 
 
+def makeConvolvedSkewers(seed=1, percent=10.): 
+    ''' Take skewers and convolve their parameter values with a 
+    multivariate Gaussian in order to reduce the skeweriness. 
+    '''
+    np.random.seed(seed)
+    # read in skewer data (i.e. parameter values and score) 
+    datdir = os.path.join(os.environ['MNULFI_DIR'], 'Peaks_MassiveNuS')
+    theta_skewers = np.load(os.path.join(datdir, 'theta.skewers.npy')) 
+    score_skewers = np.load(os.path.join(datdir, 'scores.skewers.npy')) 
+
+    # now we want to scatter the parameter values 
+    theta_lims = [(theta_skewers[:,i].min(), theta_skewers[:,i].max()) for i in range(theta_skewers.shape[1])]
+    lower = np.array([theta_lim[0] for theta_lim in theta_lims])
+    upper = np.array([theta_lim[1] for theta_lim in theta_lims])
+    dtheta = upper - lower
+    sig_theta = percent * 0.01 * dtheta # lets start off with gaussian w/ sigma = 1% of the prior limits 
+
+    theta_conv = np.random.multivariate_normal(np.zeros(3), sig_theta**2 * np.eye(3), size=theta_skewers.shape[0])
+    theta_conv += theta_skewers 
+
+    theta_conv.dump(os.path.join(datdir, 'theta.convskewers.%i.npy' % percent)) 
+    score_skewers.dump(os.path.join(datdir, 'scores.convskewers.%i.npy' % percent)) 
+    
+    # -- plot thetas --
+    theta_cloud = np.load(os.path.join(datdir, 'theta.cloud.npy')) 
+    fig = plt.figure(figsize=(8,4))  
+    sub = fig.add_subplot(121) 
+    sub.scatter(theta_cloud[::100,0], theta_cloud[::100,1], c='C0', s=2, label='Cloud') 
+    sub.scatter(theta_conv[::100,0], theta_conv[::100,1], c='C1', s=1) 
+    sub.scatter(theta_skewers[::100,0], theta_skewers[::100,1], c='k', s=2) 
+    sub.set_xlabel(r'$\theta_1$', fontsize=20) 
+    sub.set_xlim(theta_lims[0])
+    sub.set_ylabel(r'$\theta_2$', fontsize=20) 
+    sub.set_ylim(theta_lims[1])
+
+    sub = fig.add_subplot(122) 
+    sub.scatter(theta_cloud[::100,2], theta_cloud[::100,1], c='C0', s=2, label='Cloud') 
+    sub.scatter(theta_conv[::100,2], theta_conv[::100,1], c='C1', s=1, label='Conv. Skewer') 
+    sub.scatter(theta_skewers[::100,2], theta_skewers[::100,1], c='k', s=2, label='Skewer') 
+    sub.legend(loc='lower right', frameon=True, handletextpad=0.1, markerscale=3, fontsize=15) 
+    sub.set_xlabel(r'$\theta_3$', fontsize=20) 
+    sub.set_xlim(theta_lims[2])
+    sub.set_ylim(theta_lims[1])
+    fig.savefig(os.path.join(datdir, 'theta.convskewer.%i.png' % percent), bbox_inches='tight') 
+    return None 
+
+
 def skewerscloud_NDE(sampling='skewers'): 
     '''
     '''
@@ -253,16 +300,24 @@ def plot_skewerscloud_posterior(sampling='skewers'):
     # read in posterior dump 
     post = pickle.load(open(os.path.join(datdir, 'posterior.%s.p' % sampling), 'rb'))
 
+    theta_samp  = np.load(os.path.join(datdir, 'theta.%s.npy' % sampling)) 
+    theta_lims = [(theta_samp[:,i].min(), theta_samp[:,i].max()) for i in range(theta_samp.shape[1])]
+
     fig = DFM.corner(post, labels=[r'$M_\nu$', '$\Omega_m$', '$A_s$'], 
-            quantiles=[0.16, 0.5, 0.84], bins=25, smooth=True, show_titles=True, label_kwargs={'fontsize': 20}) 
+            quantiles=[0.16, 0.5, 0.84], bins=25, range=theta_lims, 
+            smooth=True, show_titles=True, label_kwargs={'fontsize': 20}) 
     fig.savefig(os.path.join(datdir, 'posterior.%s.png' % sampling), bbox_inch='tight')
     return None 
 
 
 if __name__=="__main__":
     #makeSkewerCloud()
-    #skewerNDE()
+    #makeConvolvedSkewers(seed=1, percent=1.)
     #skewerscloud_NDE(sampling='skewers') 
     #skewerscloud_NDE(sampling='cloud') 
-    plot_skewerscloud_posterior(sampling='skewers')
-    plot_skewerscloud_posterior(sampling='cloud')
+    #skewerscloud_NDE(sampling='convskewers.1') 
+    skewerscloud_NDE(sampling='convskewers.5') 
+    #plot_skewerscloud_posterior(sampling='skewers')
+    #plot_skewerscloud_posterior(sampling='cloud')
+    #plot_skewerscloud_posterior(sampling='convskewers')
+    plot_skewerscloud_posterior(sampling='convskewers.5')
