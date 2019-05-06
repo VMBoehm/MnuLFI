@@ -7,7 +7,7 @@ This folder contains:
             -KN: 'Kappa Noisy', with LSST-like noise
             -s2.00: 'smoothing = 2 '
             -z1.00: 'redshift = 1'
-            -ng40.00: 'galaxy number density = 40/arcmin^(-2)'
+            -ng40.00: 'galaxy number density = 40/arcmin^(2)'
             -b050: '#bins = 50'
       
      each file has dimension (10001 , Nbins), where the first 2 rows are the bins centers (1 row = Kappa bins centers, 2 row= S/N bins centers) 
