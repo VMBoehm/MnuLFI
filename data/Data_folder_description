@@ -26,17 +26,15 @@ This folder contains:
     this file has dimension (101 , 5) where 101 is the number of cosmologies and the columns are respectevely (file_names , M_nu , Omega_m , A_s , sigma_8)
 
 
-* data_scaled_full_set.npy: peaks values scaled for LSST sky coverage of shape (101,9999,50) where:
+* data_scaled_full_set_means.npy: peaks values means over all the 9999 realisations for each model, shape: (101,50) 
         
              -LSST scaling: (12.25/20000) = (map size/LSST sky coverage)
              -101 is the number of cosmological models
-             -9999 is the number of realisations for each model
              -50 is the number of bins
+     
+     N.B: For the scaled data with the full set of realisations data_scaled_full_set shape=(101,9999,50) see the link in the README
 
-   
-* data_scaled_full_set_means.npy: means of data_scaled_full_set.npy over all the 9999 realisations for each model, shape: (101,50) 
-        
-        
+            
 * data_scaled_100subsample.npy: peaks values scaled for LSST sky coverage of shape (101,100,50) where:
         
              -LSST scaling: (12.25/20000) = (map size/LSST sky coverage)
@@ -58,8 +56,6 @@ This folder contains:
     
 * covariance.npy: covariance of the peaks values from Peaks_KN_s2.00_z1.00_ng40.00_b050.npy, shape: (Nbins,Nbins)
  
-#####################################################################################
-N.B: For the scaled data with the full set of realisations see the link in the README
-#####################################################################################
+##################################################################################################################################
   
       
