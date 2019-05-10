@@ -50,16 +50,16 @@ This folder contains:
       N.B: the label '100subsample' is used to remark the fact that these means are taken over just a subsample (100 real.) of the 9999 full set of realisations available for each cosmology.
     
     
- * params.npy: of cosmological parameter with dimension (101,3) where:
+* params.npy: of cosmological parameter with dimension (101,3) where:
  
              -101 is the number of cosmologies
              -the columns are respectively the params (M_nu , Omega_m , A_s)
 
     
- * covariance.npy: covariance of the peaks values from Peaks_KN_s2.00_z1.00_ng40.00_b050.npy, shape: (Nbins,Nbins)
+* covariance.npy: covariance of the peaks values from Peaks_KN_s2.00_z1.00_ng40.00_b050.npy, shape: (Nbins,Nbins)
  
- #####################################################################################
- N.B: For the scaled data with the full set of realisations see the link in the README
- #####################################################################################
+#####################################################################################
+N.B: For the scaled data with the full set of realisations see the link in the README
+#####################################################################################
   
       
