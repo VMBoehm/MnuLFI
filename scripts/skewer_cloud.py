@@ -53,9 +53,9 @@ def gpPeakcounts():
     ''' read in peak counts and train GP 
     '''
     # read in peak counts data
-    datdir = os.path.join(os.environ['MNULFI_DIR'], 'Peaks_MassiveNuS')
-    thetas = np.load(os.path.join(datdir, 'params_conc_means.npy')) # thetas 
-    peakct = np.load(os.path.join(datdir, 'data_scaled_means.npy')) # average peak counts 
+    datdir = os.path.join(os.environ['MNULFI_DIR'], 'Peaks_MassiveNuS') # directory with the data 
+    thetas = np.load(os.path.join(datdir, 'params_conc.full.npy')) # thetas 
+    peakct = np.load(os.path.join(datdir, 'data_scaled.full.npy')) # average peak counts 
 
     kern = ConstantKernel(1.0, (1e-4, 1e4)) * RBF(1, (1e-4, 1e4)) # kernel
     gp = GPR(kernel=kern, n_restarts_optimizer=10) # instanciate a GP model
@@ -70,8 +70,8 @@ def makeSkewerCloud(seed=1):
     # read in covariance 
     datdir = os.path.join(os.environ['MNULFI_DIR'], 'Peaks_MassiveNuS')
 
-    thetas = np.load(os.path.join(datdir, 'params_conc_means.npy')) # thetas 
-    mudata = np.load(os.path.join(datdir, 'data_scaled_means.npy')) 
+    thetas = np.load(os.path.join(datdir,'params_conc.full.npy')) # thetas               
+    mudata = np.load(os.path.join(datdir,'data_scaled.full.npy')) # average peak counts 
     cov = np.load(os.path.join(datdir, 'covariance.npy')) # covariance  
 
     GP = gpPeakcounts() # gaussian process 
@@ -82,6 +82,7 @@ def makeSkewerCloud(seed=1):
     for iskew in range(thetas.shape[0]): 
         mu_peak = GP.predict(np.atleast_2d(thetas[iskew,:]))
         peaks_skewers[iskew*9999:(iskew+1)*9999,:] += mu_peak 
+    peaks_skewers = np.clip(peaks_skewers, 0., None) 
 
     #skewer_hull = Delaunay(sp.spatial.ConvexHull(thetas))
     skewer_hull = sp.spatial.Delaunay(thetas)
@@ -99,6 +100,7 @@ def makeSkewerCloud(seed=1):
     peaks_cloud = np.random.multivariate_normal(np.zeros(50), cov, size=theta_cloud.shape[0])
     mu_peaks = GP.predict(theta_cloud)
     peaks_cloud += mu_peaks
+    peaks_cloud = np.clip(peaks_cloud, 0., None) 
     
     # -- plot thetas --
     fig = plt.figure(figsize=(8,4))  
@@ -300,11 +302,16 @@ def plot_skewerscloud_posterior(sampling='skewers'):
     # read in posterior dump 
     post = pickle.load(open(os.path.join(datdir, 'posterior.%s.p' % sampling), 'rb'))
 
+    # fiducial theta and scores 
+    thetas = np.load(os.path.join(datdir, 'params_conc_means.npy')) # thetas 
+    theta_fid = thetas[51,:]
+
     theta_samp  = np.load(os.path.join(datdir, 'theta.%s.npy' % sampling)) 
     theta_lims = [(theta_samp[:,i].min(), theta_samp[:,i].max()) for i in range(theta_samp.shape[1])]
 
     fig = DFM.corner(post, labels=[r'$M_\nu$', '$\Omega_m$', '$A_s$'], 
-            quantiles=[0.16, 0.5, 0.84], bins=25, range=theta_lims, 
+            quantiles=[0.16, 0.5, 0.84], bins=25, 
+            range=theta_lims, truths=theta_fid, truth_color='C1', 
             smooth=True, show_titles=True, label_kwargs={'fontsize': 20}) 
     fig.savefig(os.path.join(datdir, 'posterior.%s.png' % sampling), bbox_inch='tight')
     return None 
@@ -316,8 +323,8 @@ if __name__=="__main__":
     #skewerscloud_NDE(sampling='skewers') 
     #skewerscloud_NDE(sampling='cloud') 
     #skewerscloud_NDE(sampling='convskewers.1') 
-    skewerscloud_NDE(sampling='convskewers.5') 
-    #plot_skewerscloud_posterior(sampling='skewers')
-    #plot_skewerscloud_posterior(sampling='cloud')
+    #skewerscloud_NDE(sampling='convskewers.5') 
+    plot_skewerscloud_posterior(sampling='skewers')
+    plot_skewerscloud_posterior(sampling='cloud')
     #plot_skewerscloud_posterior(sampling='convskewers')
-    plot_skewerscloud_posterior(sampling='convskewers.5')
+    #plot_skewerscloud_posterior(sampling='convskewers.5')
