@@ -28,7 +28,7 @@ This folder contains:
 
 * data_scaled_full_set.npy: peaks values scaled for LSST sky coverage of shape (101,9999,50) where:
         
-             -LSST scaling: (12.25/20000) 
+             -LSST scaling: (12.25/20000) = (map size/LSST sky coverage)
              -101 is the number of cosmological models
              -9999 is the number of realisations for each model
              -50 is the number of bins
@@ -39,7 +39,7 @@ This folder contains:
         
 * data_scaled_100subsample.npy: peaks values scaled for LSST sky coverage of shape (101,100,50) where:
         
-             -LSST scaling: (12.25/20000) 
+             -LSST scaling: (12.25/20000) = (map size/LSST sky coverage)
              -101 is the number of cosmological models
              -100 is the number of the subsample of realisations for each model
              -50 is the number of bins
