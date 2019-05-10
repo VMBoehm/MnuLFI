@@ -24,7 +24,8 @@ This folder contains:
 * MassiveNuS_params.txt: associates the file_names OmX.XXXXX_AsX.XXXXX_mvaX.XXXXX_mvb..._hX.XXXXX_OdeX.XXXXX to the parameters values
  
     this file has dimension (101 , 5) where 101 is the number of cosmologies and the columns are respectevely (file_names , M_nu , Omega_m , A_s , sigma_8)
- 
+
+
 * data_scaled_full_set.npy: peaks values scaled for LSST sky coverage of shape (101,9999,50) where:
         
              -LSST scaling: (12.25/20000) 
@@ -35,11 +36,8 @@ This folder contains:
    
 * data_scaled_full_set_means.npy: means of data_scaled_full_set.npy over all the 9999 realisations for each model, shape: (101,50) 
         
- 
- 
- 
-   
- * data_scaled_100subsample.npy: peaks values scaled for LSST sky coverage of shape (101,100,50) where:
+        
+* data_scaled_100subsample.npy: peaks values scaled for LSST sky coverage of shape (101,100,50) where:
         
              -LSST scaling: (12.25/20000) 
              -101 is the number of cosmological models
@@ -47,10 +45,9 @@ This folder contains:
              -50 is the number of bins
 
    
- * data_scaled_100subsample_means.npy: means of data_scaled_100.npy over the 100 realisations, shape: (101,50) 
+* data_scaled_100subsample_means.npy: means of data_scaled_100.npy over the 100 realisations, shape: (101,50) 
         
       N.B: the label '100subsample' is used to remark the fact that these means are taken over just a subsample (100 real.) of the 9999 full set of realisations available for each cosmology.
-    
     
     
  * params.npy: of cosmological parameter with dimension (101,3) where:
