@@ -49,59 +49,184 @@ mpl.rcParams['ytick.major.width'] = 1.5
 mpl.rcParams['legend.frameon'] = False
 
 
-def gpPeakcounts(): 
-    ''' read in peak counts and train GP 
+def fit_GPpeakcnt(): 
+    ''' read in peak counts data, a fit Gaussian Process emulator, and pickle the emulator. 
+
+    notes
+    -----
+    * MNULFI_DIR should link to the data/ folder in the repo. You can set in your 
+        ~/.bash_profile: `export MNULFI="location/MnuLFI/data/`
     '''
     # read in peak counts data
-    datdir = os.path.join(os.environ['MNULFI_DIR'], 'Peaks_MassiveNuS') # directory with the data 
-    thetas = np.load(os.path.join(datdir, 'params_conc.full.npy')) # thetas 
-    peakct = np.load(os.path.join(datdir, 'data_scaled.full.npy')) # average peak counts 
-
+    thetas = np.load(os.path.join(os.environ['MNULFI_DIR'], 'params.npy')) # thetas
+    # average peak count at each theta 
+    peakct = np.load(os.path.join(os.environ['MNULFI_DIR'], 'data_scaled_100subsample_means.npy')) 
+    
+    # fit GP
     kern = ConstantKernel(1.0, (1e-4, 1e4)) * RBF(1, (1e-4, 1e4)) # kernel
     gp = GPR(kernel=kern, n_restarts_optimizer=10) # instanciate a GP model
     gp.fit(thetas, peakct)
-    return gp 
+        
+    # pickle dump GP to file 
+    fgp = os.path.join(os.environ['MNULFI_DIR'], 'GP.peakcnt.p') 
+    pickle.dump(gp, open(fgp, 'wb')) 
+    return None 
 
 
-def makeSkewerCloud(seed=1): 
-    ''' Generate skewer and cloud data using Gaussian Process
+def ScoreComp_GPpeakcnt(): 
+    ''' pickle score compression object pydelfi.score.Score initiated 
+    using dmu/dtheta calculated using the peakcounts GP emulator. Also 
+    write out the inverse Fisher matrix and score at fiducial theta. 
+    '''
+    thetas  = np.load(os.path.join(os.environ['MNULFI_DIR'], 'params.npy')) # thetas
+    cov     = np.load(os.path.join(os.environ['MNULFI_DIR'], 'covariance.npy')) # covariance  
+    # read in peak counts GP  
+    fgp = os.path.join(os.environ['MNULFI_DIR'], 'GP.peakcnt.p')
+    gp = pickle.load(open(fgp, 'rb'))
+
+    # score compress the peak data 
+    theta_fid = thetas[51,:]
+    _mu_fid = gp.predict(np.atleast_2d(theta_fid))
+    mu_fid = _mu_fid.flatten() 
+    h = 0.01
+    
+    # calculate number derivatives 
+    _mu_theta1p = gp.predict(np.atleast_2d(np.array([theta_fid[0]*(1+h), theta_fid[1], theta_fid[2]])))
+    _mu_theta1m = gp.predict(np.atleast_2d(np.array([theta_fid[0]*(1-h), theta_fid[1], theta_fid[2]])))
+    _mu_theta2p = gp.predict(np.atleast_2d(np.array([theta_fid[0], theta_fid[1]*(1+h), theta_fid[2]])))
+    _mu_theta2m = gp.predict(np.atleast_2d(np.array([theta_fid[0], theta_fid[1]*(1-h), theta_fid[2]])))
+    _mu_theta3p = gp.predict(np.atleast_2d(np.array([theta_fid[0], theta_fid[1], theta_fid[2]*(1+h)])))
+    _mu_theta3m = gp.predict(np.atleast_2d(np.array([theta_fid[0], theta_fid[1], theta_fid[2]*(1-h)])))
+
+    mu_theta1p = _mu_theta1p.flatten() 
+    mu_theta1m = _mu_theta1m.flatten() 
+    mu_theta2p = _mu_theta2p.flatten() 
+    mu_theta2m = _mu_theta2m.flatten() 
+    mu_theta3p = _mu_theta3p.flatten() 
+    mu_theta3m = _mu_theta3m.flatten() 
+
+    dmudt1 = (mu_theta1p - mu_theta1m)/(2. * h * theta_fid[0])
+    dmudt2 = (mu_theta2p - mu_theta2m)/(2. * h * theta_fid[1])
+    dmudt3 = (mu_theta3p - mu_theta3m)/(2. * h * theta_fid[2])
+    dmudt = np.vstack((dmudt1,dmudt2,dmudt3))
+
+    Cinv = np.linalg.inv(cov) 
+
+    Comp = Score.Gaussian(len(mu_fid), theta_fid, mu=mu_fid, Cinv=Cinv, dmudt=dmudt)
+
+    # store inverse Fisher matrix 
+    Comp.compute_fisher()
+    Finv = Comp.Finv
+    Finv.dump(os.path.join(os.environ['MNULFI_DIR'], 'Finv.GP.peakcnt.npy'))
+
+    # score compress average peak count at fiducial theta  
+    scores_fid = Comp.scoreMLE(mu_fid) 
+    theta_fid.dump(os.path.join(os.environ['MNULFI_DIR'], 'theta.fid.npy'))
+    mu_fid.dump(os.path.join(os.environ['MNULFI_DIR'], 'peaks.fid.npy'))
+    scores_fid.dump(os.path.join(os.environ['MNULFI_DIR'], 'score.fid.npy')) 
+
+    # pickle Score compression object  
+    fsc = os.path.join(os.environ['MNULFI_DIR'], 'ScoreComp.GP.peakcnt.p') 
+    pickle.dump(Comp, open(fsc, 'wb')) 
+    return None 
+
+
+def makeSkewers(seed=1): 
+    ''' Generate skewer data using the Gaussian Process peak counts emulator 
+    at the 101 theta values of the original setup. 
     '''
     np.random.seed(seed)
     # read in covariance 
-    datdir = os.path.join(os.environ['MNULFI_DIR'], 'Peaks_MassiveNuS')
+    thetas  = np.load(os.path.join(os.environ['MNULFI_DIR'], 'params.npy')) # thetas
+    cov     = np.load(os.path.join(os.environ['MNULFI_DIR'], 'covariance.npy')) # covariance  
 
-    thetas = np.load(os.path.join(datdir,'params_conc.full.npy')) # thetas               
-    mudata = np.load(os.path.join(datdir,'data_scaled.full.npy')) # average peak counts 
-    cov = np.load(os.path.join(datdir, 'covariance.npy')) # covariance  
+    # read in peak counts GP  
+    fgp = os.path.join(os.environ['MNULFI_DIR'], 'GP.peakcnt.p')
+    gp = pickle.load(open(fgp, 'rb'))
 
-    GP = gpPeakcounts() # gaussian process 
-    
     # generate skewer data 
     theta_skewers = np.tile(thetas[None,:,:], 9999).reshape(thetas.shape[0] * 9999, thetas.shape[1])
     peaks_skewers = np.random.multivariate_normal(np.zeros(50), cov, size=theta_skewers.shape[0])
     for iskew in range(thetas.shape[0]): 
-        mu_peak = GP.predict(np.atleast_2d(thetas[iskew,:]))
+        mu_peak = gp.predict(np.atleast_2d(thetas[iskew,:]))
         peaks_skewers[iskew*9999:(iskew+1)*9999,:] += mu_peak 
-    peaks_skewers = np.clip(peaks_skewers, 0., None) 
+    peaks_skewers = np.clip(peaks_skewers, 0., None) # clip unphysical values 
 
-    #skewer_hull = Delaunay(sp.spatial.ConvexHull(thetas))
-    skewer_hull = sp.spatial.Delaunay(thetas)
-    theta_lims = [(theta_skewers[:,i].min(), theta_skewers[:,i].max()) for i in range(theta_skewers.shape[1])]
+    # save skewers to files
+    theta_skewers.dump(os.path.join(os.environ['MNULFI_DIR'], 'theta.skewers.npy')) 
+    peaks_skewers.dump(os.path.join(os.environ['MNULFI_DIR'], 'peaks.skewers.npy')) 
 
-    # generate cloud data 
-    _theta_cloud = np.zeros((4*theta_skewers.shape[0], 3))
-    _theta_cloud[:,0] = np.random.uniform(theta_lims[0][0], theta_lims[0][1], 4*theta_skewers.shape[0])
-    _theta_cloud[:,1] = np.random.uniform(theta_lims[1][0], theta_lims[1][1], 4*theta_skewers.shape[0])
-    _theta_cloud[:,2] = np.random.uniform(theta_lims[2][0], theta_lims[2][1], 4*theta_skewers.shape[0])
+    # score compress the peak data 
+    fsc = os.path.join(os.environ['MNULFI_DIR'], 'ScoreComp.GP.peakcnt.p') 
+    Comp = pickle.load(open(fsc, 'rb')) 
 
-    inhull = (skewer_hull.find_simplex(_theta_cloud) >= 0) 
-    theta_cloud = _theta_cloud[inhull,:][:theta_skewers.shape[0]]
+    scores_skewers = np.zeros((peaks_skewers.shape[0], 3)) 
+    for i in range(peaks_skewers.shape[0]): 
+        scores_skewers[i,:] = Comp.scoreMLE(peaks_skewers[i,:]) 
+    scores_skewers.dump(os.path.join(os.environ['MNULFI_DIR'], 'score.skewers.npy')) 
+    return None
+
+
+def makeCloud(seed=1): 
+    ''' Generate cloud data using Gaussian process peak counts emulator. Cloud data  
+    are peak counts generated by the emulator over the convex hull of the skewers. 
+    Limited to the convex hull so that the emulator doesn't need to extrapolate anywhere  
+    '''
+    np.random.seed(seed)
+    # read in covariance 
+    thetas  = np.load(os.path.join(os.environ['MNULFI_DIR'], 'params.npy')) # thetas
+    cov     = np.load(os.path.join(os.environ['MNULFI_DIR'], 'covariance.npy')) # covariance  
+
+    # read in peak counts GP  
+    fgp = os.path.join(os.environ['MNULFI_DIR'], 'GP.peakcnt.p')
+    gp = pickle.load(open(fgp, 'rb'))
+    
+    # convex hull of the 101 parameter values
+    theta_hull = sp.spatial.Delaunay(thetas)
+    theta_lims = [(thetas[:,i].min(), thetas[:,i].max()) for i in range(thetas.shape[1])]
+
+    # sample a bunch of thetas roughly within the theta range 
+    _theta_cloud = np.zeros((4*9999*thetas.shape[0], 3))
+    _theta_cloud[:,0] = np.random.uniform(theta_lims[0][0], theta_lims[0][1], 4*9999*thetas.shape[0])
+    _theta_cloud[:,1] = np.random.uniform(theta_lims[1][0], theta_lims[1][1], 4*9999*thetas.shape[0])
+    _theta_cloud[:,2] = np.random.uniform(theta_lims[2][0], theta_lims[2][1], 4*9999*thetas.shape[0])
+
+    # only keep those in the hull  
+    inhull = (theta_hull.find_simplex(_theta_cloud) >= 0) 
+    theta_cloud = _theta_cloud[inhull,:][:9999*thetas.shape[0]]
 
     peaks_cloud = np.random.multivariate_normal(np.zeros(50), cov, size=theta_cloud.shape[0])
-    mu_peaks = GP.predict(theta_cloud)
+    mu_peaks = gp.predict(theta_cloud)
     peaks_cloud += mu_peaks
-    peaks_cloud = np.clip(peaks_cloud, 0., None) 
+    peaks_cloud = np.clip(peaks_cloud, 0., None) # clip 0 
     
+    # dump cloud data 
+    theta_cloud.dump(os.path.join(os.environ['MNULFI_DIR'], 'theta.cloud.npy')) 
+    peaks_cloud.dump(os.path.join(os.environ['MNULFI_DIR'], 'peaks.cloud.npy')) 
+
+    # score compress the peak data 
+    fsc = os.path.join(os.environ['MNULFI_DIR'], 'ScoreComp.GP.peakcnt.p') 
+    Comp = pickle.load(open(fsc, 'rb')) 
+
+    scores_cloud = np.zeros((peaks_cloud.shape[0], 3)) 
+    for i in range(peaks_cloud.shape[0]): 
+        scores_cloud[i,:] = Comp.scoreMLE(peaks_cloud[i,:]) 
+    scores_cloud.dump(os.path.join(os.environ['MNULFI_DIR'], 'score.cloud.npy')) 
+    return None
+
+
+def plotSkewersCloud():
+    ''' various plots for skewers and cloud setup 
+    '''
+    # read in thetas, peaks, scores 
+    theta_skewers = np.load(os.path.join(os.environ['MNULFI_DIR'], 'theta.skewers.npy')) 
+    peaks_skewers = np.load(os.path.join(os.environ['MNULFI_DIR'], 'peaks.skewers.npy')) 
+    score_skewers = np.load(os.path.join(os.environ['MNULFI_DIR'], 'score.skewers.npy')) 
+    theta_cloud = np.load(os.path.join(os.environ['MNULFI_DIR'], 'theta.cloud.npy')) 
+    peaks_cloud = np.load(os.path.join(os.environ['MNULFI_DIR'], 'peaks.cloud.npy')) 
+    score_cloud = np.load(os.path.join(os.environ['MNULFI_DIR'], 'score.cloud.npy')) 
+
+    theta_lims = [(theta_skewers[:,i].min(), theta_skewers[:,i].max()) for i in range(theta_skewers.shape[1])]
     # -- plot thetas --
     fig = plt.figure(figsize=(8,4))  
     sub = fig.add_subplot(121) 
@@ -119,7 +244,7 @@ def makeSkewerCloud(seed=1):
     sub.set_xlabel(r'$\theta_3$', fontsize=20) 
     sub.set_xlim(theta_lims[2])
     sub.set_ylim(theta_lims[1])
-    fig.savefig(os.path.join(datdir, 'theta.skewer_cloud.png'), bbox_inches='tight') 
+    fig.savefig(os.path.join(os.environ['MNULFI_FIGDIR'], 'theta.skewers_cloud.png'), bbox_inches='tight') 
 
     # -- plot peak counts -- 
     fig = plt.figure(figsize=(8,4))  
@@ -130,68 +255,80 @@ def makeSkewerCloud(seed=1):
         if i == 0: sub.legend(loc='upper right', fontsize=15) 
     sub.set_xlim(0, 49)
     sub.set_ylabel('peak counts', labelpad=10, fontsize=20) 
-    fig.savefig(os.path.join(datdir, 'peaks.skewer_cloud.png'), bbox_inches='tight') 
-
-    # save skewer and cloud to files
-    theta_cloud.dump(os.path.join(datdir, 'theta.cloud.npy')) 
-    peaks_cloud.dump(os.path.join(datdir, 'peaks.cloud.npy')) 
-
-    theta_skewers.dump(os.path.join(datdir, 'theta.skewers.npy')) 
-    peaks_skewers.dump(os.path.join(datdir, 'peaks.skewers.npy')) 
-
-    # score compress the peak data 
-    theta_fid = thetas[51,:]
-    _mu_fid = GP.predict(np.atleast_2d(theta_fid))
-    mu_fid = _mu_fid.flatten() 
-    h = 0.01
-
-    _mu_theta1p = GP.predict(np.atleast_2d(np.array([theta_fid[0]*(1+h), theta_fid[1], theta_fid[2]])))
-    _mu_theta1m = GP.predict(np.atleast_2d(np.array([theta_fid[0]*(1-h), theta_fid[1], theta_fid[2]])))
-    _mu_theta2p = GP.predict(np.atleast_2d(np.array([theta_fid[0], theta_fid[1]*(1+h), theta_fid[2]])))
-    _mu_theta2m = GP.predict(np.atleast_2d(np.array([theta_fid[0], theta_fid[1]*(1-h), theta_fid[2]])))
-    _mu_theta3p = GP.predict(np.atleast_2d(np.array([theta_fid[0], theta_fid[1], theta_fid[2]*(1+h)])))
-    _mu_theta3m = GP.predict(np.atleast_2d(np.array([theta_fid[0], theta_fid[1], theta_fid[2]*(1-h)])))
-
-    mu_theta1p = _mu_theta1p.flatten() 
-    mu_theta1m = _mu_theta1m.flatten() 
-    mu_theta2p = _mu_theta2p.flatten() 
-    mu_theta2m = _mu_theta2m.flatten() 
-    mu_theta3p = _mu_theta3p.flatten() 
-    mu_theta3m = _mu_theta3m.flatten() 
-
-    dmudt1 = (mu_theta1p - mu_theta1m)/(2. * h * theta_fid[0])
-    dmudt2 = (mu_theta2p - mu_theta2m)/(2. * h * theta_fid[1])
-    dmudt3 = (mu_theta3p - mu_theta3m)/(2. * h * theta_fid[2])
-    dmudt = np.vstack((dmudt1,dmudt2,dmudt3))
-    Cinv = np.linalg.inv(cov) 
-
-    Comp = Score.Gaussian(len(mu_fid), theta_fid, mu=mu_fid, Cinv=Cinv, dmudt=dmudt)
-    Comp.compute_fisher()
-    Finv = Comp.Finv
-    Finv.dump(os.path.join(datdir, 'peak.Finv.npy'))
-
-    scores_cloud = np.zeros((peaks_cloud.shape[0], 3)) 
-    scores_skewers = np.zeros((peaks_cloud.shape[0], 3)) 
-    for i in range(peaks_cloud.shape[0]): 
-        scores_cloud[i,:] = Comp.scoreMLE(peaks_cloud[i,:]) 
-        scores_skewers[i,:] = Comp.scoreMLE(peaks_skewers[i,:]) 
-
-    scores_fid = Comp.scoreMLE(mudata[51,:]) 
-    scores_fid.dump(os.path.join(datdir, 'scores.fid.npy')) 
-    scores_cloud.dump(os.path.join(datdir, 'scores.cloud.npy')) 
-    scores_skewers.dump(os.path.join(datdir, 'scores.skewers.npy')) 
+    fig.savefig(os.path.join(os.environ['MNULFI_FIGDIR'], 'peaks.skewer_cloud.png'), bbox_inches='tight') 
 
     # -- plot scores -- 
     fig = plt.figure(figsize=(8,4))  
     sub = fig.add_subplot(111) 
     for i in range(100): 
-        sub.plot(range(3), scores_cloud[10000*i,:], c='k', lw=0.2, label='Cloud') 
-        sub.plot(range(3), scores_skewers[10000*i,:], c='C0', lw=0.2, label='Skewer') 
+        sub.plot(range(3), score_cloud[10000*i,:], c='k', lw=0.2, label='Cloud') 
+        sub.plot(range(3), score_skewers[10000*i,:], c='C0', lw=0.2, label='Skewer') 
         if i == 0: sub.legend(loc='upper right', fontsize=15) 
     sub.set_xlim(0, 2)
     sub.set_ylabel('peak count score', labelpad=10, fontsize=20) 
-    fig.savefig(os.path.join(datdir, 'scores.skewer_cloud.png'), bbox_inches='tight') 
+    fig.savefig(os.path.join(os.environ['MNULFI_FIGDIR'], 'scores.skewer_cloud.png'), bbox_inches='tight') 
     return None
+
+
+def truePosterior(nwalkers=100, burn_in_chain=200, main_chain=1000): 
+    ''' sample the true posterior with MCMC and the true likelihood used to 
+    sample the data 
+    '''
+    import emcee
+    import scipy.optimize as op
+    # covarianace matrix
+    cov     = np.load(os.path.join(os.environ['MNULFI_DIR'], 'covariance.npy')) # covariance  
+    Cinv    = np.linalg.inv(cov) # precision matrix 
+    # prior range 
+    thetas  = np.load(os.path.join(os.environ['MNULFI_DIR'], 'params.npy')) # thetas
+    prior_range = np.array([[thetas[:,i].min(), thetas[:,i].max()] for i in range(thetas.shape[1])]) 
+    # read in fiducial peak counts -- i.e. our data  
+    peaks_fid = np.load(os.path.join(os.environ['MNULFI_DIR'], 'peaks.fid.npy'))
+    
+    # read in GP emulator (our model) 
+    fgp = os.path.join(os.environ['MNULFI_DIR'], 'GP.peakcnt.p')
+    gp = pickle.load(open(fgp, 'rb'))
+
+    def lnprior(tt): 
+        ''' log uniform prior 
+        '''
+        t0, t1, t2 = tt 
+        if (prior_range[0][0] <= t0 <= prior_range[0][1]) and (prior_range[1][0] <= t1 <= prior_range[1][1]) and (prior_range[2][0] <= t2 <= prior_range[2][1]):
+            return 0.0 
+        return -np.inf 
+
+    def lnlike(tt): 
+        ''' log likelihood. Becuase all the data is sampled from the multivariate 
+        gaussian N(GP emulator, covariance) this is the *true* likelihood 
+        '''
+        delta = (gp.predict(np.atleast_2d(tt)).flatten() - peaks_fid) 
+        return -0.5*np.dot(delta, np.dot(Cinv, delta.T))
+
+    def lnprob(tt):
+        lp = lnprior(tt)
+        if not np.isfinite(lp): 
+            return -np.inf 
+        return lp + lnlike(tt)
+
+    # initialize walkers randomly drawn from prior 
+    ndim = thetas.shape[1]  
+    pos = [np.random.uniform(prior_range[:,0], prior_range[:,1]) for i in range(nwalkers)]
+    
+    # run mcmc 
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob)
+
+    print('running burn-in chain') 
+    pos, prob, state = sampler.run_mcmc(pos, burn_in_chain)
+    sampler.reset()
+    print('running main chain') 
+    sampler.run_mcmc(pos, main_chain)
+     
+    # save chain 
+    post = sampler.flatchain.copy() 
+    post.dump(os.path.join(os.environ['MNULFI_DIR'], 'true_posterior.chain.npy'))
+    
+    plotPosterior(post, figname=os.path.join(os.environ['MNULFI_FIGDIR'], 'true_posterior.png')) 
+    return None 
 
 
 def makeConvolvedSkewers(seed=1, percent=10.): 
@@ -317,14 +454,31 @@ def plot_skewerscloud_posterior(sampling='skewers'):
     return None 
 
 
+def plotPosterior(post, figname=None):
+    ''' plot posterior given chain  
+    '''
+    if figname is None: raise ValueError('specify figure name') 
+    # fiducial theta -- i.e. true theta  
+    theta_fid = np.load(os.path.join(os.environ['MNULFI_DIR'], 'theta.fid.npy'))
+    
+    thetas  = np.load(os.path.join(os.environ['MNULFI_DIR'], 'params.npy')) # thetas
+    theta_lims = [(thetas[:,i].min(), thetas[:,i].max()) for i in range(thetas.shape[1])]
+
+    fig = DFM.corner(post, labels=[r'$M_\nu$', '$\Omega_m$', '$A_s$'], 
+            quantiles=[0.16, 0.5, 0.84], bins=20, 
+            range=theta_lims, truths=theta_fid, truth_color='C1', 
+            smooth=True, show_titles=True, label_kwargs={'fontsize': 20}) 
+    fig.savefig(figname, bbox_inch='tight')
+
+
 if __name__=="__main__":
-    #makeSkewerCloud()
+    #plotSkewersCloud()
     #makeConvolvedSkewers(seed=1, percent=1.)
     #skewerscloud_NDE(sampling='skewers') 
     #skewerscloud_NDE(sampling='cloud') 
     #skewerscloud_NDE(sampling='convskewers.1') 
     #skewerscloud_NDE(sampling='convskewers.5') 
-    plot_skewerscloud_posterior(sampling='skewers')
-    plot_skewerscloud_posterior(sampling='cloud')
+    #plot_skewerscloud_posterior(sampling='skewers')
+    #plot_skewerscloud_posterior(sampling='cloud')
     #plot_skewerscloud_posterior(sampling='convskewers')
     #plot_skewerscloud_posterior(sampling='convskewers.5')
