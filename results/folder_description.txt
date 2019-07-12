@@ -1,0 +1,3 @@
+This folder contains all data products that we want to put in the paper.
+Please make sure the filenames make sense and add a description to what they contain, and which paper section they belong to:
+https://docs.google.com/document/d/1yem-4WhI_uEhR6WVEUIqlf-rL9UeKZexJ_NpVAsVz-U/edit?usp=sharing 
