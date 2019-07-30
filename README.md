@@ -1,3 +1,6 @@
+# MnuLFI
+Testing strengths and pitfalls of likelihood-free inference with neural networks on the MassiveNus peak count data set
+
 ## Installing the MnuLFI modules
 set `$MNULFI_DIR` in your bashrc or bash_profile then run 
 ```
