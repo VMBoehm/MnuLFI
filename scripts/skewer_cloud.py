@@ -18,10 +18,10 @@ cloud:
         theta 
 '''
 import os 
-import h5py 
 import pickle 
 import numpy as np 
 import scipy as sp 
+import scipy.stats as stats
 import tensorflow as tf 
 # --- pydelfi --- 
 import pydelfi.ndes as NDEs
@@ -47,30 +47,6 @@ mpl.rcParams['ytick.labelsize'] = 'x-large'
 mpl.rcParams['ytick.major.size'] = 5
 mpl.rcParams['ytick.major.width'] = 1.5
 mpl.rcParams['legend.frameon'] = False
-
-
-def fit_GPpeakcnt(): 
-    ''' read in peak counts data, a fit Gaussian Process emulator, and pickle the emulator. 
-
-    notes
-    -----
-    * MNULFI_DIR should link to the data/ folder in the repo. You can set in your 
-        ~/.bash_profile: `export MNULFI="location/MnuLFI/data/`
-    '''
-    # read in peak counts data
-    thetas = np.load(os.path.join(os.environ['MNULFI_DIR'], 'params.npy')) # thetas
-    # average peak count at each theta 
-    peakct = np.load(os.path.join(os.environ['MNULFI_DIR'], 'data_scaled_100subsample_means.npy')) 
-    
-    # fit GP
-    kern = ConstantKernel(1.0, (1e-4, 1e4)) * RBF(1, (1e-4, 1e4)) # kernel
-    gp = GPR(kernel=kern, n_restarts_optimizer=10) # instanciate a GP model
-    gp.fit(thetas, peakct)
-        
-    # pickle dump GP to file 
-    fgp = os.path.join(os.environ['MNULFI_DIR'], 'GP.peakcnt.p') 
-    pickle.dump(gp, open(fgp, 'wb')) 
-    return None 
 
 
 def ScoreComp_GPpeakcnt(): 
@@ -270,67 +246,6 @@ def plotSkewersCloud():
     return None
 
 
-def truePosterior(nwalkers=100, burn_in_chain=200, main_chain=1000): 
-    ''' sample the true posterior with MCMC and the true likelihood used to 
-    sample the data 
-    '''
-    import emcee
-    import scipy.optimize as op
-    # covarianace matrix
-    cov     = np.load(os.path.join(os.environ['MNULFI_DIR'], 'covariance.npy')) # covariance  
-    Cinv    = np.linalg.inv(cov) # precision matrix 
-    # prior range 
-    thetas  = np.load(os.path.join(os.environ['MNULFI_DIR'], 'params.npy')) # thetas
-    prior_range = np.array([[thetas[:,i].min(), thetas[:,i].max()] for i in range(thetas.shape[1])]) 
-    # read in fiducial peak counts -- i.e. our data  
-    peaks_fid = np.load(os.path.join(os.environ['MNULFI_DIR'], 'peaks.fid.npy'))
-    
-    # read in GP emulator (our model) 
-    fgp = os.path.join(os.environ['MNULFI_DIR'], 'GP.peakcnt.p')
-    gp = pickle.load(open(fgp, 'rb'))
-
-    def lnprior(tt): 
-        ''' log uniform prior 
-        '''
-        t0, t1, t2 = tt 
-        if (prior_range[0][0] <= t0 <= prior_range[0][1]) and (prior_range[1][0] <= t1 <= prior_range[1][1]) and (prior_range[2][0] <= t2 <= prior_range[2][1]):
-            return 0.0 
-        return -np.inf 
-
-    def lnlike(tt): 
-        ''' log likelihood. Becuase all the data is sampled from the multivariate 
-        gaussian N(GP emulator, covariance) this is the *true* likelihood 
-        '''
-        delta = (gp.predict(np.atleast_2d(tt)).flatten() - peaks_fid) 
-        return -0.5*np.dot(delta, np.dot(Cinv, delta.T))
-
-    def lnprob(tt):
-        lp = lnprior(tt)
-        if not np.isfinite(lp): 
-            return -np.inf 
-        return lp + lnlike(tt)
-
-    # initialize walkers randomly drawn from prior 
-    ndim = thetas.shape[1]  
-    pos = [np.random.uniform(prior_range[:,0], prior_range[:,1]) for i in range(nwalkers)]
-    
-    # run mcmc 
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob)
-
-    print('running burn-in chain') 
-    pos, prob, state = sampler.run_mcmc(pos, burn_in_chain)
-    sampler.reset()
-    print('running main chain') 
-    sampler.run_mcmc(pos, main_chain)
-     
-    # save chain 
-    post = sampler.flatchain.copy() 
-    post.dump(os.path.join(os.environ['MNULFI_DIR'], 'true_posterior.chain.npy'))
-    
-    plotPosterior(post, figname=os.path.join(os.environ['MNULFI_FIGDIR'], 'true_posterior.png')) 
-    return None 
-
-
 def makeConvolvedSkewers(seed=1, percent=10.): 
     ''' Take skewers and convolve their parameter values with a 
     multivariate Gaussian in order to reduce the skeweriness. 
@@ -472,6 +387,7 @@ def plotPosterior(post, figname=None):
 
 
 if __name__=="__main__":
+    truePosterior(nwalkers=100, burn_in_chain=200, main_chain=1000)
     #plotSkewersCloud()
     #makeConvolvedSkewers(seed=1, percent=1.)
     #skewerscloud_NDE(sampling='skewers') 
