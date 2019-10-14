@@ -7,8 +7,7 @@ Clone the repo then run
 pip install --user -e .
 ```
 
-Then to test the install and generate the data:
+Then to test the install and generate the data simply run 
 ```
-import mnulfi.data as Data
-Data._make_data()
+pytest
 ```

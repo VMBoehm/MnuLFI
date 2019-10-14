@@ -23,7 +23,7 @@ def theta_LHC():
         101 set of (Mnu, Om, As) parameter values of the Latin HyperCube
     '''
 
-    thetas = np.load(os.path.join(UT.dat_dir(), 'theta_lhc.npy'), allow_pickle=True) # thetas
+    thetas = np.load(os.path.join(dat_dir(), 'theta_lhc.npy'), allow_pickle=True) # thetas
 
     return thetas
 
@@ -47,12 +47,12 @@ def PeakCnts_LHC(average=True, scaled=False):
     '''
 
     if average: # average peak counts at each LHC (scaling it doesn't change anything)  
-        peakct = np.load(os.path.join(UT.dat_dir(), 'avg_peakcnts_lhc.npy'), allow_pickle=True)
+        peakct = np.load(os.path.join(dat_dir(), 'avg_peakcnts_lhc.npy'), allow_pickle=True)
     else: # peak counts of all realizations at each LHC 
         if not scaled: 
-            peakct = np.load(os.path.join(UT.dat_dir(), 'peakcnts_lhc.npy'), allow_pickle=True) 
+            peakct = np.load(os.path.join(dat_dir(), 'peakcnts_lhc.npy'), allow_pickle=True) 
         else: 
-            peakct = np.load(os.path.join(UT.dat_dir(), 'peakcnts_lhc.scaled.npy'), allow_pickle=True) 
+            peakct = np.load(os.path.join(dat_dir(), 'peakcnts_lhc.scaled.npy'), allow_pickle=True) 
 
     return peakct
 
@@ -70,7 +70,7 @@ def PeakCnts_fiducial():
     '''
 
     # read in peak counts at fiducial cosmology 
-    peaks = np.load(os.path.join(UT.dat_dir(), 'Peaks_KN_s2.00_z1.00_ng40.00_b050.npy'), allow_pickle=True)
+    peaks = np.load(os.path.join(dat_dir(), 'Peaks_KN_s2.00_z1.00_ng40.00_b050.npy'), allow_pickle=True)
     bin_mid = peaks[0,:]
     peakcnt = peaks[2:,:]
     return bin_mid, peakcnt
@@ -97,7 +97,7 @@ def covariance(scaled=False):
     * The LSST scaling factor is 12.25/20000.
     '''
 
-    cov = np.load(os.path.join(UT.dat_dir(), 'covariance.npy'), allow_pickle=True) # covariance  
+    cov = np.load(os.path.join(dat_dir(), 'covariance.npy'), allow_pickle=True) # covariance  
 
     f_sky = 12.25/20000.
     if scaled: cov *= f_sky
