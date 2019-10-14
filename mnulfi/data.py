@@ -43,7 +43,7 @@ def PeakCnts_LHC(average=True, scaled=False):
         101 peak counts at each of the LHC cosmologies. 
         If average is True 101x50 array; If average is False 101x9999x50 array
     '''
-    if average: # average peak counts at each LHC (scaling it doesn't change anything) 
+    if average: # average peak counts at each LHC (scaling it doesn't change anything)  
         peakct = np.load(os.path.join(UT.dat_dir(), 'avg_peakcnts_lhc.npy'), allow_pickle=True)
     else: # peak counts of all realizations at each LHC 
         if not scaled: 
