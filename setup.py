@@ -7,7 +7,7 @@ setup(name = 'MnuLFI',
       version = __version__,
       python_requires='>3.5.2',
       description = 'Mnu Likelihood-Free Inference',
-      requires = ['numpy', 'matplotlib', 'scipy'],
+      requires = ['numpy', 'matplotlib', 'scipy', 'pytest'],
       provides = ['mnulfi'],
       packages = ['mnulfi']
       )
